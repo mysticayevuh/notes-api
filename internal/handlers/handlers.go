@@ -1,15 +1,13 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ava/notes-api/internal/config"
 	"github.com/ava/notes-api/internal/models"
 	"github.com/ava/notes-api/internal/storage"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -34,54 +32,37 @@ func New(store Store, cfg *config.Config) *Handler {
 	}
 }
 
-func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+func (h *Handler) HealthCheck(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
 		"status": "ok",
 	})
 }
 
-func (h *Handler) HandleNotes(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		h.listNotes(w, r)
-	case http.MethodPost:
-		h.createNote(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (h *Handler) listNotes(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListNotes(c *fiber.Ctx) error {
 	notes, err := h.store.GetAll()
 	if err != nil {
 		log.Printf("Error fetching notes: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Internal server error",
+		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(notes); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	return c.JSON(notes)
 }
 
-func (h *Handler) createNote(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateNote(c *fiber.Ctx) error {
 	var req models.CreateNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
 	}
 
 	// basic validation
 	if req.Title == "" {
-		http.Error(w, "Title is required", http.StatusBadRequest)
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Title is required",
+		})
 	}
 
 	now := time.Now()
@@ -95,48 +76,42 @@ func (h *Handler) createNote(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.store.Create(note); err != nil {
 		log.Printf("Error creating note: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Internal server error",
+		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(note)
+	return c.Status(fiber.StatusCreated).JSON(note)
 }
 
-func (h *Handler) HandleNoteByID(w http.ResponseWriter, r *http.Request) {
-	// extract ID from path
-	// will fix later once i decide on how to handle ids
-	path := strings.TrimPrefix(r.URL.Path, "/notes/")
-	if path == "" {
-		http.Error(w, "Note ID required", http.StatusBadRequest)
-		return
+func (h *Handler) GetNoteByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Note ID required",
+		})
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		h.getNoteByID(w, r, path)
-	case http.MethodDelete:
-		// TODO: delete endpoint not implemented yet
-		http.Error(w, "Not implemented", http.StatusNotImplemented)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (h *Handler) getNoteByID(w http.ResponseWriter, r *http.Request, id string) {
 	note, err := h.store.GetByID(id)
 	if err == storage.ErrNotFound {
-		http.Error(w, "Note not found", http.StatusNotFound)
-		return
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Note not found",
+		})
 	}
 	if err != nil {
 		log.Printf("Error fetching note: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Internal server error",
+		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(note)
+	return c.JSON(note)
+}
+
+func (h *Handler) DeleteNote(c *fiber.Ctx) error {
+	// TODO: delete endpoint not implemented yet
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"error": "Not implemented",
+	})
 }
 

@@ -1,17 +1,13 @@
 package main
 
 import (
-	"context"
 	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/ava/notes-api/internal/config"
 	"github.com/ava/notes-api/internal/handlers"
 	"github.com/ava/notes-api/internal/storage"
+	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
@@ -24,42 +20,23 @@ func main() {
 	cfg := config.New()
 
 	store := storage.NewMemoryStore()
-	
+
 	// set up handlers
 	h := handlers.New(store, cfg)
-	
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", h.HealthCheck)
-	mux.HandleFunc("/notes", h.HandleNotes)
-	mux.HandleFunc("/notes/", h.HandleNoteByID) // not fully completed yet
-	
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
 
-	// graceful shutdown
-	go func() {
-		log.Printf("Starting server on port %s", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
-		}
-	}()
+	app := fiber.New(fiber.Config{
+		// TODO: add more config options here
+	})
 
-	// wait for interrupt
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
+	app.Get("/health", h.HealthCheck)
+	app.Get("/notes", h.ListNotes)
+	app.Post("/notes", h.CreateNote)
+	app.Get("/notes/:id", h.GetNoteByID)
+	app.Delete("/notes/:id", h.DeleteNote) // not fully completed yet
 
-	log.Println("Shutting down...")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("Error shutting down: %v", err)
+	log.Printf("Starting server on port %s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Server failed: %v", err)
 	}
 }
 
