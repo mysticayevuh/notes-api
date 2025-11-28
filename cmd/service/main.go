@@ -32,7 +32,7 @@ func main() {
 	app.Get("/notes", h.ListNotes)
 	app.Post("/notes", h.CreateNote)
 	app.Get("/notes/:id", h.GetNoteByID)
-	app.Delete("/notes/:id", h.DeleteNote) // not fully completed yet
+	app.Delete("/notes/:id", h.DeleteNote)
 
 	log.Printf("Starting server on port %s", port)
 	if err := app.Listen(":" + port); err != nil {

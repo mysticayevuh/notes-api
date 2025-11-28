@@ -109,9 +109,27 @@ func (h *Handler) GetNoteByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) DeleteNote(c *fiber.Ctx) error {
-	// TODO: delete endpoint not implemented yet
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"error": "Not implemented",
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Note ID required",
+		})
+	}
+
+	err := h.store.Delete(id)
+	if err != nil {
+		log.Printf("Error deleting note: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Internal server error",
+		})
+	}
+
+	return c.Status(fiber.StatusNoContent).JSON(fiber.Map{
+		"message": "Note deleted successfully",
 	})
+
+	// return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+	// 	"error": "Not implemented",
+	// })
 }
 

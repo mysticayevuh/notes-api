@@ -32,6 +32,13 @@ func (s *MemoryStore) Create(note *models.Note) error {
 	return nil
 }
 
+func (s *MemoryStore) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.notes, id)
+	return nil
+}
+
 func (s *MemoryStore) GetByID(id string) (*models.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -64,12 +71,6 @@ func (s *MemoryStore) Update(id string, note *models.Note) error {
 	}
 	
 	s.notes[id] = note
-	return nil
-}
-
-// not yet decided on the return signature
-func (s *MemoryStore) Delete(id string) error {
-	// implement this
 	return nil
 }
 
